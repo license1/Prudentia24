@@ -1,0 +1,68 @@
+version: "3.9"
+services:
+  nvr:
+    container_name: nvr
+#    privileged: true         # for GPU Stats
+    restart: unless-stopped
+    image: ghcr.io/blakeblackshear/frigate:stable
+    shm_size: "128mb" # Based on no. of cameras
+    devices:
+#      - /dev/bus/usb:/dev/bus/usb #usb HW Acceleration
+#      - /dev/apex_0:/dev/apex_0 #PCI_E HW Acceleraation
+      - /dev/dri/renderD128 #Intel HW Acceleration pass through
+
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./nvr/config.yml/:/config/config.yml
+      - /mnt/nvr/:/media/frigate
+      - /docker/nvr/db:/db
+      - type: tmpfs # RAM Cache 500mb
+        target: /tmp/cache
+        tmpfs:
+          size: 500000000
+    mem_limit: 2048m
+    mem_reservation: 256m
+    cpus: 0.5
+#    ports:
+#      - "5000:5000"
+#      - "8554:8554" # RTSP retransmit feeds
+#      - "8555:8555/tcp" # WebRTC over tcp
+#      - "8555:8555/udp" # WebRTC over udp
+    networks:
+      - nvr1
+
+    env_file: stack.env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nvr.entrypoints=http"
+      - "traefik.http.routers.nvr.rule=Host(`nvr.$Domain_Name.com`)"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.nvr.middlewares=https-redirect"
+      - "traefik.http.routers.nvr-ssl.entrypoints=https"
+      - "traefik.http.routers.nvr-ssl.rule=Host(`nvr.$Domain_Name.com`)"
+      - "traefik.http.routers.nvr-ssl.tls=true"
+      - "traefik.http.routers.nvr-ssl.service=nvr"
+      - "traefik.http.services.nvr.loadbalancer.server.port=5000"
+      - "traefik.docker.network=nvr1"
+
+      - "traefik.tcp.services.mqtt.loadbalancer.server.port=1883"
+      - "traefik.tcp.routers.mqtt.entrypoints=websecure"
+      - "traefik.tcp.routers.mqtt.rule=HostSNI(`mqtt.$Domain_Name.com`)"
+      - "traefik.tcp.routers.mqtt.service=mqtt"
+      - "traefik.tcp.routers.mqtt.tls=true"
+      - "traefik.tcp.routers.mqtt.tls.certresolver=lets-encrypt"
+      - "traefik.tcp.routers.mqtt_insecure.rule=HostSNI(`*`)"
+
+  certbot1:
+    image: certbot/dns-cloudflare
+    command: renew --non-interactive --dns-cloudflare --dns-cloudflare-credentials /cf/cloudflare.ini --agree-tos -d $Domain_Name --email $EMAIL_ID
+    volumes:
+      - /root/.secrets:/cf
+      - certs:/etc/letsencrypt
+      - ./letsencrypt/log:/var/log/letsencrypt
+networks:
+  nvr1:
+    external: true
+    name: nvr1
+volumes:
+  certs:
