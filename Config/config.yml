@@ -1,0 +1,51 @@
+mqtt:
+  enabled: false
+  
+detectors:  # HW AI specified
+  ov:
+    type: openvino
+    device: GPU
+    model:
+      path: /openvino-model/ssdlite_mobilenet_v2.xml
+
+model:
+  width: 300
+  height: 300
+  input_tensor: nhwc
+  input_pixel_format: bgr
+  labelmap_path: /openvino-model/coco_91cl_bkgr.txt
+
+cameras:
+  outdoor1: # <------ camera name
+    ffmpeg:
+      hwaccel_args: preset-vaapi
+      inputs:
+        - path: rtsp://{FRIGATE_RTSP_USER}:{FRIGATE_RTSP_PASSWORD}@($Camera_IP):554/stream2 # <----- H264 AI stream
+          input_args: preset-rtsp-generic
+          roles:
+            - detect
+        - path: rtsp://{FRIGATE_RTSP_USER}:{FRIGATE_RTSP_PASSWORD}@($Camera_IP):554/stream1 # <----- H265 Record stream
+          roles:
+            - record
+    detect:
+      enabled: True # <---- run only on camera presence
+      width: 704 # <---- AI stream width
+      height: 576 # <---- AI stream height
+      fps: 5
+database:
+  # database location
+  path: /db/frigate.db
+record:
+  enabled: True
+  retain:
+    days: 30
+    mode: all
+snapshots:
+  enabled: true
+  timestamp: true
+  bounding_box: False # Detector Box
+  crop: False
+  retain:
+    default: 30
+    objects:
+      person: 30
