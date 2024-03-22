@@ -1,0 +1,33 @@
+version: '3'
+services:
+  alerts1:
+    container_name: alerts1
+    image: "ghcr.io/home-assistant/home-assistant:stable"
+    volumes:
+      - ./alerts1/config:/config
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    mem_limit: 768m
+    mem_reservation: 64m
+    cpus: 0.33
+#    privileged: true
+#    network_mode: host
+    networks:
+      - home2
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alerts.entrypoints=http"
+      - "traefik.http.routers.alerts.rule=Host(`alerts.$Domain_Name.com`)"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.alerts.middlewares=https-redirect"
+      - "traefik.http.routers.alerts-secure.entrypoints=https"
+      - "traefik.http.routers.alerts-secure.rule=Host(`alerts.$Domain_Name.com`)"
+      - "traefik.http.routers.alerts-secure.tls=true"
+      - "traefik.http.routers.alerts-secure.service=alerts1"
+      - "traefik.http.services.alerts.loadbalancer.server.port=8123"
+      - "traefik.docker.network=home2"
+
+networks:
+  home2:
+    external: true
+    name: home2
